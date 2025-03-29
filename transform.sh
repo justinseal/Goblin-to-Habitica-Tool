@@ -24,7 +24,7 @@ then
     exit 1
 fi
 
-# jq script to transform keys from camelCase to snake_case
+# jq script to transform keys and append checklist items
 jq_script='
 def camelToSnake:
   if type == "string" then
@@ -36,15 +36,25 @@ def camelToSnake:
     .
   end;
 
-.[]
-| with_entries(.key |= camelToSnake)
-| {
-  text: .text,
-  type: (.type | if . then . else "default_type" end),
-  alias: (.alias | if . then . else "default_alias" end),
-  notes: (.notes | if . then . else "default_notes" end),
-  checklist: (.checklist | if . then . else [] end)
-}
+# Load the entire input array into a variable
+. as $input_array |
+
+# Function to find children based on parentId
+def findChildren(parentId):
+  $input_array | map(select(.parentId == parentId)) ;
+
+# Main processing
+map(
+  with_entries(.key |= camelToSnake)
+  | .children = (findChildren(.id))
+  | {
+    text: .text,
+    type: (if .parent_id == null then "todo" else (.type | if . then . else "todo" end) end),
+    alias: (.alias | if . then . else "default_alias" end),
+    notes: (.notes | if . then . else "default_notes" end),
+    checklist: (.children | if . then . else [] end)
+  }
+)
 '
 
 # Transform JSON using jq
